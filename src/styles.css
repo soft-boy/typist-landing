@@ -486,6 +486,40 @@ kbd {
 .copy.done {
   color: var(--green);
 }
+.firstrun {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: var(--bg-0);
+  border: 1px solid var(--line);
+}
+.firstrun h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.firstrun p,
+.firstrun li {
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+.firstrun ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.firstrun li + li {
+  margin-top: 4px;
+}
+.firstrun b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.btn.is-disabled {
+  background: var(--bg-4);
+  border-color: var(--line-2);
+  color: var(--ink-2);
+  box-shadow: none;
+  cursor: default;
+}
 .fineprint {
   margin-top: 12px !important;
   font-size: 13.5px;

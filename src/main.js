@@ -2,10 +2,13 @@
 //
 // 1. Detect the visitor's OS (and CPU architecture where the browser exposes it).
 // 2. Ask GitHub for the latest release and pick the matching installer.
-// 3. If there's no release yet (or GitHub can't be reached), point to the
-//    build-from-source steps instead of a broken link.
+// 3. If there's nothing to download yet for this platform, say so plainly
+//    instead of linking somewhere broken.
+//
+// Installers are published as GitHub Releases of this (public) site repo;
+// the app's source repo is private.
 
-const REPO = 'soft-boy/typist'
+const REPO = 'soft-boy/typist-landing'
 const RELEASES_URL = `https://github.com/${REPO}/releases`
 const CACHE_KEY = 'typist.latestRelease'
 
@@ -120,9 +123,12 @@ function kindLabel(name) {
 
 // --- Rendering --------------------------------------------------------------
 
-function setButtons({ href, label, icon, scrollTo }) {
+function setButtons({ href, label, icon, scrollTo, disabled }) {
   for (const el of document.querySelectorAll('[data-download]')) {
     el.href = href
+    el.classList.toggle('is-disabled', !!disabled)
+    if (disabled) el.setAttribute('aria-disabled', 'true')
+    else el.removeAttribute('aria-disabled')
     if (scrollTo) el.dataset.scroll = scrollTo
     else delete el.dataset.scroll
     const iconEl = el.querySelector('.os-icon')
@@ -133,20 +139,34 @@ function setButtons({ href, label, icon, scrollTo }) {
   }
 }
 
+/** Links to installers for the other platforms that actually have one. */
 function otherPlatformsLinks(release, os) {
   const links = []
   for (const other of ['mac', 'windows', 'linux']) {
     if (other === os) continue
     const best = pickInstaller(release, other, other === 'mac' ? 'arm64' : 'x64')
-    links.push(`<a href="${best ? best.browser_download_url : RELEASES_URL}">${OS_NAMES[other]}</a>`)
+    if (best) links.push(`<a href="${best.browser_download_url}">${OS_NAMES[other]}</a>`)
   }
   return links.join(' · ')
+}
+
+/** Show the first-launch tip for the visitor's platform (macOS by default). */
+function showFirstRun(os) {
+  const which = os === 'windows' || os === 'linux' ? os : 'mac'
+  for (const el of document.querySelectorAll('.firstrun')) el.hidden = el.dataset.for !== which
+}
+
+const AFTER_DOWNLOAD = {
+  mac: 'Open <b>Typist.dmg</b> and drag Typist into Applications. The first time, macOS will ask you to confirm in <b>System Settings → Privacy &amp; Security → Open Anyway</b>.',
+  windows: 'Run the installer. If SmartScreen warns you, choose <b>More info → Run anyway</b>.',
+  linux: 'Make the AppImage executable (<code>chmod +x</code>) and run it.'
 }
 
 async function init() {
   const meta = document.getElementById('download-meta')
   const alt = document.getElementById('download-alt')
   const { os, arch } = await detectPlatform()
+  showFirstRun(os)
 
   if (os === 'mobile' || os === 'unknown') {
     setButtons({ href: '#install', label: 'Get Typist for desktop', scrollTo: '#install' })
@@ -161,7 +181,8 @@ async function init() {
     const label = `Download for ${OS_NAMES[os]}`
     setButtons({ href: installer.browser_download_url, label, icon: ICONS[os] })
     const bits = [release.tag_name, archLabel(os, installer.arch), kindLabel(installer.name), formatSize(installer.size)].filter(Boolean)
-    meta.innerHTML = `${bits.join(' · ')} — also for ${otherPlatformsLinks(release, os)} · <a href="${release.html_url || RELEASES_URL}">all downloads</a>`
+    const others = otherPlatformsLinks(release, os)
+    meta.innerHTML = `${bits.join(' · ')}${others ? ` — also for ${others}` : ''} · <a href="${release.html_url || RELEASES_URL}">all downloads</a>`
     if (os === 'mac' && installer.arch !== 'universal') {
       const intel = installersFor(release, 'mac').find((a) => a.arch === (installer.arch === 'arm64' ? 'x64' : 'arm64'))
       if (intel) {
@@ -172,23 +193,20 @@ async function init() {
     for (const el of document.querySelectorAll('[data-download]')) {
       el.addEventListener('click', () => {
         alt.hidden = false
-        alt.innerHTML =
-          os === 'mac'
-            ? 'Thanks for downloading! Builds aren’t notarized yet — the first time, right-click Typist in Applications and choose <b>Open</b>.'
-            : os === 'windows'
-              ? 'Thanks for downloading! If SmartScreen warns you, choose <b>More info → Run anyway</b>.'
-              : 'Thanks for downloading! Make the AppImage executable (<code>chmod +x</code>) and run it.'
+        alt.innerHTML = AFTER_DOWNLOAD[os]
       })
     }
     return
   }
 
-  // No installer published for this platform yet: send people to the from-source steps.
-  setButtons({ href: '#install', label: `Get Typist for ${OS_NAMES[os]}`, icon: ICONS[os], scrollTo: '#install' })
-  meta.innerHTML = `Prebuilt installers are on the way — for now, Typist runs from source in three commands. <a href="${RELEASES_URL}">Releases</a>`
+  // Nothing to download for this platform yet.
+  const others = release ? otherPlatformsLinks(release, os) : ''
+  setButtons({ href: '#install', label: release ? `Typist for ${OS_NAMES[os]} is coming soon` : 'Download coming soon', icon: ICONS[os], disabled: true })
+  meta.innerHTML = others
+    ? `Available now for ${others}.`
+    : 'The first release is on its way — check back soon.'
   const step3 = document.getElementById('step3-text')
-  if (step3) step3.textContent = 'Installers are on the way. Until then, run Typist from source:'
-  document.querySelector('.step3-actions')?.setAttribute('hidden', '')
+  if (step3) step3.textContent = release ? `Typist for ${OS_NAMES[os]} is coming soon.` : 'The first release is on its way — check back soon.'
 }
 
 // --- Small niceties ----------------------------------------------------------
